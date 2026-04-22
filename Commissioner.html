@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Commissioner — Fantasy Football Co-Manager</title>
+  <meta name="viewport" content="width=1440" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script src="data.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" src="components/atoms.jsx"></script>
+  <script type="text/babel" src="components/shell.jsx"></script>
+  <script type="text/babel" src="components/dashboard.jsx"></script>
+  <script type="text/babel" src="components/startsit.jsx"></script>
+  <script type="text/babel" src="components/screens.jsx"></script>
+
+  <script type="text/babel">
+    const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "format": "Dynasty",
+      "density": "Compact"
+    }/*EDITMODE-END*/;
+
+    function App() {
+      const [route, setRoute] = React.useState(() => localStorage.getItem("cm_route") || "dashboard");
+      const [chatOpen, setChatOpen] = React.useState(false);
+      const [tweaksOpen, setTweaksOpen] = React.useState(false);
+      const [format, setFormatState] = React.useState(TWEAK_DEFAULTS.format);
+      const [density, setDensityState] = React.useState(TWEAK_DEFAULTS.density);
+      const [dataVersion, setDataVersion] = React.useState(0);
+      const [dataError, setDataError] = React.useState("");
+
+      React.useEffect(() => { localStorage.setItem("cm_route", route); }, [route]);
+
+      const setFormat = v => { setFormatState(v); window.parent.postMessage({type:"__edit_mode_set_keys", edits:{format:v}}, "*"); };
+      const setDensity = v => { setDensityState(v); window.parent.postMessage({type:"__edit_mode_set_keys", edits:{density:v}}, "*"); };
+
+      React.useEffect(() => {
+        const onMsg = (e) => {
+          if (!e.data || !e.data.type) return;
+          if (e.data.type === "__activate_edit_mode") setTweaksOpen(true);
+          if (e.data.type === "__deactivate_edit_mode") setTweaksOpen(false);
+        };
+        window.addEventListener("message", onMsg);
+        window.parent.postMessage({type:"__edit_mode_available"}, "*");
+        return () => window.removeEventListener("message", onMsg);
+      }, []);
+
+      React.useEffect(() => {
+        const onData = () => { setDataError(""); setDataVersion(v => v + 1); };
+        const onError = (event) => {
+          const msg = event?.detail?.message || "Unable to load Sleeper data";
+          setDataError(msg);
+          setDataVersion(v => v + 1);
+        };
+        window.addEventListener("commissioner:data-updated", onData);
+        window.addEventListener("commissioner:data-error", onError);
+        if (typeof window.loadCommissionerData === "function") {
+          window.loadCommissionerData();
+        }
+        return () => {
+          window.removeEventListener("commissioner:data-updated", onData);
+          window.removeEventListener("commissioner:data-error", onError);
+        };
+      }, []);
+
+      React.useEffect(() => {
+        const onKey = (e) => {
+          if (e.key === "Escape") { setChatOpen(false); return; }
+          if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setChatOpen(o => !o); return; }
+          if (document.activeElement?.tagName === "INPUT") return;
+          const map = { "1":"dashboard","2":"startsit","3":"matchup","4":"draft","5":"roster" };
+          if (map[e.key]) setRoute(map[e.key]);
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+      }, []);
+
+      const screen = {
+        dashboard: <DashboardScreen onOpenChat={()=>setChatOpen(true)} setRoute={setRoute} />,
+        startsit: <StartSitScreen />,
+        draft: <DraftScreen />,
+        matchup: <MatchupScreen />,
+        roster: <RosterScreen />,
+      }[route];
+
+      // Update league format label based on tweak
+      React.useEffect(() => {
+        window.LEAGUE.format = format === "Dynasty" ? "Dynasty — Half PPR" : format === "Redraft" ? "Redraft — Half PPR" : "Best Ball — Half PPR";
+      }, [format]);
+
+      return (
+        <div className="app" data-density={density}>
+          <Sidebar route={route} setRoute={setRoute} onOpenChat={()=>setChatOpen(true)} />
+          <main className="main" key={route + format + dataVersion}>
+            {dataError && (
+              <div style={{padding:"8px 48px", borderBottom:"1px solid var(--rule)", color:"var(--bad)", fontSize:12}}>
+                Live sync unavailable: {dataError}. Showing latest cached view.
+              </div>
+            )}
+            {screen}
+          </main>
+          <ChatPanel open={chatOpen} onClose={()=>setChatOpen(false)} />
+          {!chatOpen && (
+            <button className="chat-fab" onClick={()=>setChatOpen(true)}>
+              <Dot kind="good" pulse />
+              Ask Commissioner
+              <kbd style={{border:"1px solid #ffffff40", color:"#fff", background:"transparent"}}>⌘K</kbd>
+            </button>
+          )}
+          <TweaksPanel open={tweaksOpen} format={format} setFormat={setFormat} density={density} setDensity={setDensity} />
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
