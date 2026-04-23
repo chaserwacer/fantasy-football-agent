@@ -22,6 +22,17 @@ const DRAFT_QUEUE = [];
 const DRAFT_BOARD = [];
 const OPP_ROSTER = [];
 const NEWS = [];
+const LLM_RECOMMENDATIONS = {
+  enabled: false,
+  provider: "openai",
+  model: "",
+  summary: "",
+  lineup: [],
+  waivers: [],
+  matchupFocus: [],
+  riskAlerts: [],
+  tradeAngles: [],
+};
 
 const POS_COLORS = {
   QB: "#C44536", RB: "#2B7A4B", WR: "#3A6EA5", TE: "#B88A2F", K: "#6B6760", DEF: "#6B6760", FLEX: "#141413",
@@ -43,6 +54,7 @@ function applyPayload(payload) {
   replaceArray(DRAFT_BOARD, payload.DRAFT_BOARD);
   replaceArray(OPP_ROSTER, payload.OPP_ROSTER);
   replaceArray(NEWS, payload.NEWS);
+  if (payload.LLM_RECOMMENDATIONS) Object.assign(LLM_RECOMMENDATIONS, payload.LLM_RECOMMENDATIONS);
   if (payload.POS_COLORS) Object.assign(POS_COLORS, payload.POS_COLORS);
 }
 
@@ -88,6 +100,7 @@ Object.assign(window, {
   DRAFT_BOARD,
   OPP_ROSTER,
   NEWS,
+  LLM_RECOMMENDATIONS,
   POS_COLORS,
   loadCommissionerData,
   setSleeperUsername,

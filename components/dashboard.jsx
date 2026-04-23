@@ -1,6 +1,9 @@
 // Dashboard — Home screen
 function DashboardScreen({ onOpenChat, setRoute }) {
   const topCall = STARTSIT[0];
+  const aiTopCall = (LLM_RECOMMENDATIONS?.lineup || [])[0] || null;
+  const aiTopWaiver = (LLM_RECOMMENDATIONS?.waivers || [])[0] || null;
+  const aiSummary = String(LLM_RECOMMENDATIONS?.summary || "").trim();
   const leadAction = topCall
     ? `Start ${topCall.recommendStart} at ${topCall.slot}. Sit ${topCall.recommendSit}.`
     : "No clear lineup edge yet.";
@@ -48,6 +51,33 @@ function DashboardScreen({ onOpenChat, setRoute }) {
             </div>
           </div>
         </div>
+
+        {(LLM_RECOMMENDATIONS?.enabled || aiSummary) && (
+          <div className="card" style={{marginTop:18}}>
+            <Eyebrow>AI Second Opinion {LLM_RECOMMENDATIONS?.model ? `(${LLM_RECOMMENDATIONS.model})` : ""}</Eyebrow>
+            {aiSummary && (
+              <div style={{fontSize:14, marginTop:8, color:"var(--ink-2)", lineHeight:1.55}}>{aiSummary}</div>
+            )}
+            <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginTop:14}}>
+              <div style={{padding:"12px", border:"1px solid var(--rule-2)", background:"var(--paper-2)"}}>
+                <div className="mono" style={{fontSize:10, letterSpacing:"0.08em", color:"var(--ink-3)"}}>AI LINEUP</div>
+                <div style={{fontSize:13, marginTop:6}}>
+                  {aiTopCall
+                    ? `${aiTopCall.recommendStart} over ${aiTopCall.recommendSit} at ${aiTopCall.slot} (${aiTopCall.confidence}% confidence)`
+                    : "No additional lineup swap from the model this cycle."}
+                </div>
+              </div>
+              <div style={{padding:"12px", border:"1px solid var(--rule-2)", background:"var(--paper-2)"}}>
+                <div className="mono" style={{fontSize:10, letterSpacing:"0.08em", color:"var(--ink-3)"}}>AI WAIVER</div>
+                <div style={{fontSize:13, marginTop:6}}>
+                  {aiTopWaiver
+                    ? `${aiTopWaiver.player} (${aiTopWaiver.pos}, ${aiTopWaiver.team}) - priority ${aiTopWaiver.priority}`
+                    : "No additive waiver target identified by the model."}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Three-up: Team pulse / Matchup / News */}

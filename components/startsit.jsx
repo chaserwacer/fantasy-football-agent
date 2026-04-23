@@ -4,6 +4,8 @@ function StartSitScreen() {
   const [checked, setChecked] = useState({});
   const [copied, setCopied] = useState(false);
   const rec = STARTSIT[selected] || null;
+  const aiLineup = LLM_RECOMMENDATIONS?.lineup || [];
+  const aiRecForSlot = aiLineup.find((item) => item.slot === rec?.slot) || aiLineup[0] || null;
 
   if (!rec) {
     return (
@@ -103,6 +105,23 @@ function StartSitScreen() {
               <div style={{marginTop:20, padding:"14px 16px", borderLeft:"2px solid var(--warn)", background:"var(--paper-2)"}}>
                 <div className="eyebrow" style={{color:"var(--warn)"}}>Caution</div>
                 <div style={{fontSize:13, marginTop:4}}>{rec.caution}</div>
+              </div>
+            )}
+
+            {aiRecForSlot && (
+              <div style={{marginTop:20, padding:"14px 16px", borderLeft:"2px solid var(--accent)", background:"var(--paper-2)"}}>
+                <div className="eyebrow" style={{color:"var(--accent)"}}>
+                  AI Second Opinion {LLM_RECOMMENDATIONS?.model ? `(${LLM_RECOMMENDATIONS.model})` : ""}
+                </div>
+                <div style={{fontSize:13, marginTop:4, lineHeight:1.55}}>
+                  {aiRecForSlot.recommendStart} over {aiRecForSlot.recommendSit} at {aiRecForSlot.slot} ({aiRecForSlot.confidence}% confidence).
+                </div>
+                {(aiRecForSlot.rationale || []).slice(0, 2).map((line, idx) => (
+                  <div key={idx} style={{fontSize:12, marginTop:6, color:"var(--ink-2)"}}>{line}</div>
+                ))}
+                {aiRecForSlot.risk && (
+                  <div style={{fontSize:12, marginTop:8, color:"var(--warn)"}}>Risk note: {aiRecForSlot.risk}</div>
+                )}
               </div>
             )}
 

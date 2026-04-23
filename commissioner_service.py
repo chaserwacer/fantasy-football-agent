@@ -4,6 +4,7 @@ import math
 from collections import Counter
 from typing import Any, Dict, List, Optional, Tuple
 
+from llm_recommender import LLMRecommendationError, OpenAIRecommendationClient
 from sleeper_client import SleeperApiError, SleeperClient, TTLCache
 
 
@@ -44,6 +45,7 @@ class CommissionerService:
     def __init__(self, sleeper_client: SleeperClient) -> None:
         self._sleeper = sleeper_client
         self._cache = TTLCache()
+        self._llm = OpenAIRecommendationClient.from_env()
 
     def build_context(
         self,
@@ -51,8 +53,10 @@ class CommissionerService:
         username: str,
         season: Optional[int] = None,
         week: Optional[int] = None,
+        include_llm: bool = True,
     ) -> Dict[str, Any]:
-        cache_key = f"ctx:{username}:{season or 'auto'}:{week or 'auto'}"
+        llm_mode = "on" if include_llm else "off"
+        cache_key = f"ctx:{username}:{season or 'auto'}:{week or 'auto'}:{llm_mode}"
         cached = self._cache.get(cache_key)
         if cached is not None:
             return cached
@@ -149,6 +153,21 @@ class CommissionerService:
             "oppProjection": round(opp_projection, 1),
         }
 
+        llm_recommendations = self._build_llm_recommendations(
+            include_llm=include_llm,
+            league_payload=league_payload,
+            startsit=startsit,
+            draft_queue=draft_queue,
+            roster_rows=roster_rows,
+            opp_roster=opp_roster,
+            news=news,
+            team_strength=team_strength,
+        )
+        llm_news = self._build_llm_news(llm_recommendations)
+        if llm_news:
+            news = llm_news + news
+            news = news[:5]
+
         payload = {
             "LEAGUE": league_payload,
             "ROSTER": roster_rows,
@@ -157,6 +176,7 @@ class CommissionerService:
             "DRAFT_BOARD": draft_board,
             "OPP_ROSTER": opp_roster,
             "NEWS": news,
+            "LLM_RECOMMENDATIONS": llm_recommendations,
             "POS_COLORS": self.POS_COLORS,
             "META": {
                 "league_id": league_id,
@@ -167,9 +187,37 @@ class CommissionerService:
         self._cache.set(cache_key, payload, ttl_seconds=90)
         return payload
 
-    def answer_chat(self, *, message: str, username: str, season: Optional[int] = None, week: Optional[int] = None) -> str:
+    def answer_chat(
+        self,
+        *,
+        message: str,
+        username: str,
+        season: Optional[int] = None,
+        week: Optional[int] = None,
+        use_llm: bool = True,
+    ) -> str:
         """Returns lightweight assistant responses grounded in current context."""
-        ctx = self.build_context(username=username, season=season, week=week)
+        ctx = self.build_context(username=username, season=season, week=week, include_llm=use_llm)
+        if use_llm and self._llm is not None:
+            llm_context = {
+                "league": ctx.get("LEAGUE") or {},
+                "deterministicStartSit": (ctx.get("STARTSIT") or [])[:3],
+                "deterministicWaivers": (ctx.get("DRAFT_QUEUE") or [])[:5],
+                "llmRecommendations": ctx.get("LLM_RECOMMENDATIONS") or {},
+                "opponentStarterView": (ctx.get("OPP_ROSTER") or [])[:7],
+                "news": (ctx.get("NEWS") or [])[:5],
+            }
+            try:
+                llm_reply = self._llm.generate_chat_reply(context=llm_context, user_message=message)
+                if llm_reply:
+                    return llm_reply
+            except LLMRecommendationError:
+                pass
+
+        return self._answer_chat_deterministic(message=message, ctx=ctx)
+
+    def _answer_chat_deterministic(self, *, message: str, ctx: Dict[str, Any]) -> str:
+        """Provides deterministic fallback chat behavior when LLM is unavailable."""
         text = (message or "").strip().lower()
 
         startsit = ctx.get("STARTSIT") or []
@@ -211,6 +259,111 @@ class CommissionerService:
                 "Ask me about matchup, waivers, or trade targets for deeper guidance."
             )
         return "I am synced but waiting for enough projection data to make a recommendation."
+
+    def _build_llm_recommendations(
+        self,
+        *,
+        include_llm: bool,
+        league_payload: Dict[str, Any],
+        startsit: List[Dict[str, Any]],
+        draft_queue: List[Dict[str, Any]],
+        roster_rows: List[Dict[str, Any]],
+        opp_roster: List[Dict[str, Any]],
+        news: List[Dict[str, Any]],
+        team_strength: Dict[str, float],
+    ) -> Dict[str, Any]:
+        """Builds additive LLM recommendations from normalized deterministic context."""
+        disabled_payload = {
+            "enabled": False,
+            "provider": "openai",
+            "model": self._llm.model if self._llm is not None else "",
+            "summary": "",
+            "lineup": [],
+            "waivers": [],
+            "matchupFocus": [],
+            "riskAlerts": [],
+            "tradeAngles": [],
+        }
+        if not include_llm:
+            disabled_payload["summary"] = "LLM recommendations were disabled for this request."
+            return disabled_payload
+
+        if self._llm is None:
+            disabled_payload["summary"] = "Set OPENAI_API_KEY to enable AI recommendation overlays."
+            return disabled_payload
+
+        context = {
+            "league": league_payload,
+            "deterministic": {
+                "lineup": startsit[:3],
+                "waivers": draft_queue[:5],
+            },
+            "roster": {
+                "starters": [row for row in roster_rows if row.get("slot") != "BN"][:12],
+                "bench": [row for row in roster_rows if row.get("slot") == "BN"][:10],
+            },
+            "opponentStarterView": opp_roster[:7],
+            "externalTeamStrength": dict(sorted(team_strength.items(), key=lambda item: item[1], reverse=True)[:10]),
+            "newsSignals": news[:5],
+        }
+        try:
+            return self._llm.generate_recommendations(context=context)
+        except LLMRecommendationError as exc:
+            disabled_payload["summary"] = f"AI overlay unavailable: {exc}"
+            return disabled_payload
+
+    def _build_llm_news(self, llm_recommendations: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Converts top LLM recommendation items into News cards for UI visibility."""
+        if not llm_recommendations.get("enabled"):
+            return []
+
+        items: List[Dict[str, Any]] = []
+        top_lineup = (llm_recommendations.get("lineup") or [])[:1]
+        top_waiver = (llm_recommendations.get("waivers") or [])[:1]
+        summary = str(llm_recommendations.get("summary") or "").strip()
+
+        if summary:
+            items.append(
+                {
+                    "time": "just now",
+                    "tag": "AI",
+                    "player": "CommissionerAI",
+                    "pos": "",
+                    "team": "",
+                    "body": summary,
+                    "impact": "context",
+                }
+            )
+
+        if top_lineup:
+            call = top_lineup[0]
+            items.append(
+                {
+                    "time": "just now",
+                    "tag": "AI-LINEUP",
+                    "player": str(call.get("recommendStart") or "").strip(),
+                    "pos": str(call.get("slot") or ""),
+                    "team": "",
+                    "body": f"AI call: start over sit at {call.get('slot', 'FLEX')} with {call.get('confidence', 60)}% confidence.",
+                    "impact": "your-team",
+                }
+            )
+
+        if top_waiver:
+            target = top_waiver[0]
+            items.append(
+                {
+                    "time": "just now",
+                    "tag": "AI-WAIVER",
+                    "player": str(target.get("player") or "").strip(),
+                    "pos": str(target.get("pos") or ""),
+                    "team": str(target.get("team") or ""),
+                    "body": str(target.get("rationale") or "").strip() or "AI flagged this waiver target.",
+                    "impact": "monitor",
+                }
+            )
+
+        return items[:2]
 
     def _league_score(self, item: Dict[str, Any]) -> Tuple[int, int, int]:
         status = str(item.get("status", "")).lower()
