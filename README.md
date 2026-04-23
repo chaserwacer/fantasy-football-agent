@@ -90,6 +90,24 @@ The Flask server exposes three JSON endpoints plus static assets.
 
 Liveness probe. Returns `{"ok": true}`.
 
+### `GET /api/diagnostics`
+
+Runs a live upstream health check against Sleeper, ESPN, and OpenAI (if configured) with short timeouts. Powers the **Settings → Run health check** button in the UI.
+
+```json
+{
+  "overall": "ok",
+  "headline": "All required services reachable. App is good to run.",
+  "checks": [
+    { "name": "Sleeper", "status": "ok", "message": "HTTP 200", "latencyMs": 142, "detail": "…" },
+    { "name": "ESPN",    "status": "ok", "message": "HTTP 200", "latencyMs": 210, "detail": "…" },
+    { "name": "OpenAI",  "status": "disabled", "message": "OPENAI_API_KEY not set", "latencyMs": null, "detail": "…" }
+  ]
+}
+```
+
+Per-check `status` values: `ok`, `warn` (credentials rejected), `error`, `disabled` (feature off). `overall` is `ok`, `degraded`, or `error`.
+
 ### `GET /api/context`
 
 Returns the full dashboard payload — league, roster, start/sit recommendations, waiver queue, matchup, news, and optional LLM overlay.

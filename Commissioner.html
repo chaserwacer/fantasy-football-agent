@@ -80,7 +80,7 @@
           if (e.key === "Escape") { setChatOpen(false); return; }
           if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setChatOpen(o => !o); return; }
           if (document.activeElement?.tagName === "INPUT") return;
-          const map = { "1":"dashboard","2":"startsit","3":"matchup","4":"draft","5":"roster" };
+          const map = { "1":"dashboard","2":"startsit","3":"matchup","4":"draft","5":"roster","6":"settings" };
           if (map[e.key]) setRoute(map[e.key]);
         };
         window.addEventListener("keydown", onKey);
@@ -93,6 +93,7 @@
         draft: <DraftScreen />,
         matchup: <MatchupScreen />,
         roster: <RosterScreen />,
+        settings: <SettingsScreen />,
       }[route];
 
       // Update league format label based on tweak
@@ -120,10 +121,11 @@
                 Showing your last saved snapshot. Refreshing live data from Sleeper…
               </div>
             )}
-            {!dataLoaded && !dataError ? (
+            {!dataLoaded && !dataError && route !== "settings" ? (
               <div style={{padding:"48px", color:"var(--ink-3)", fontSize:14, display:"flex", alignItems:"center", gap:12}}>
                 <Dot kind="warn" pulse />
                 Loading live Sleeper context…
+                <button className="btn ghost sm" style={{marginLeft:12}} onClick={()=>setRoute("settings")}>Open Settings →</button>
               </div>
             ) : (
               screen

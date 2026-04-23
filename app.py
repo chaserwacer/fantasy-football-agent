@@ -7,6 +7,7 @@ from typing import Any, Dict
 from flask import Flask, jsonify, request, send_from_directory
 
 from commissioner_service import CommissionerService
+from diagnostics import run_all as run_diagnostics
 from history_store import HistoryStore
 from sleeper_client import SleeperApiError, SleeperClient
 
@@ -28,6 +29,11 @@ def index() -> Any:
 @app.get("/api/health")
 def health() -> Any:
     return jsonify({"ok": True})
+
+
+@app.get("/api/diagnostics")
+def diagnostics() -> Any:
+    return jsonify(run_diagnostics())
 
 
 @app.get("/api/context")

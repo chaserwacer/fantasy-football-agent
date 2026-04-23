@@ -354,4 +354,127 @@ function RosterScreen() {
   );
 }
 
-Object.assign(window, { DraftScreen, MatchupScreen, RosterScreen });
+function SettingsScreen() {
+  const [state, setState] = useState({ loading: false, result: null, error: "" });
+
+  const statusMeta = {
+    ok: { dot: "good", label: "OK", color: "var(--good)" },
+    warn: { dot: "warn", label: "WARN", color: "var(--warn)" },
+    error: { dot: "bad", label: "ERROR", color: "var(--bad)" },
+    disabled: { dot: "", label: "OFF", color: "var(--ink-3)" },
+  };
+
+  const overallMeta = {
+    ok: { dot: "good", label: "Ready" },
+    degraded: { dot: "warn", label: "Degraded" },
+    error: { dot: "bad", label: "Blocked" },
+  };
+
+  const run = async () => {
+    setState({ loading: true, result: null, error: "" });
+    try {
+      const response = await fetch("/api/diagnostics", { headers: { "Accept": "application/json" } });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body.error || `Health check failed (${response.status})`);
+      }
+      setState({ loading: false, result: body, error: "" });
+    } catch (err) {
+      setState({ loading: false, result: null, error: String(err.message || err) });
+    }
+  };
+
+  const result = state.result;
+  const overall = result ? overallMeta[result.overall] || overallMeta.error : null;
+
+  return (
+    <>
+      <Masthead
+        eyebrow="Settings · Diagnostics"
+        title="The"
+        titleEm="Control Room"
+        right={<>
+          <span>Health check</span>
+          <span className="big">{result ? (overall?.label || "Unknown") : state.loading ? "Running…" : "Not run"}</span>
+        </>}
+      />
+      <div className="content" style={{paddingTop:28}}>
+        <div className="card">
+          <Eyebrow>Connection Health</Eyebrow>
+          <div style={{fontFamily:"var(--serif)", fontSize:28, lineHeight:1.1, marginTop:8}}>
+            Run a live probe of every upstream the app depends on.
+          </div>
+          <div style={{fontSize:13, color:"var(--ink-2)", marginTop:10, maxWidth:620, lineHeight:1.55}}>
+            Checks Sleeper (required for league data), ESPN (optional team-strength signal), and OpenAI (optional AI overlay).
+            Each probe uses a short timeout so this is safe to run at any time.
+          </div>
+          <div style={{display:"flex", gap:10, marginTop:18, alignItems:"center"}}>
+            <button className="btn primary" onClick={run} disabled={state.loading}>
+              {state.loading ? "Checking…" : "Run health check"}
+            </button>
+            {result && (
+              <span style={{display:"flex", alignItems:"center", gap:8, fontSize:13}}>
+                <Dot kind={overall?.dot} /> {result.headline}
+              </span>
+            )}
+          </div>
+          {state.error && (
+            <div style={{marginTop:14, padding:"12px 14px", borderLeft:"2px solid var(--bad)", background:"var(--paper-2)", color:"var(--bad)", fontSize:13}}>
+              {state.error}
+            </div>
+          )}
+        </div>
+
+        {result && (
+          <div style={{marginTop:24}}>
+            <Eyebrow>Probe Results</Eyebrow>
+            <table className="data" style={{marginTop:12}}>
+              <thead><tr>
+                <th style={{width:32}}></th>
+                <th>Service</th>
+                <th>Status</th>
+                <th>Message</th>
+                <th className="num">Latency</th>
+                <th>Detail</th>
+              </tr></thead>
+              <tbody>
+                {result.checks.map((c, i) => {
+                  const meta = statusMeta[c.status] || statusMeta.error;
+                  return (
+                    <tr key={i}>
+                      <td><Dot kind={meta.dot} /></td>
+                      <td style={{fontFamily:"var(--sans)", fontWeight:600}}>{c.name}</td>
+                      <td><span className="mono" style={{fontSize:11, fontWeight:600, color:meta.color, letterSpacing:"0.08em"}}>{meta.label}</span></td>
+                      <td style={{fontSize:13}}>{c.message}</td>
+                      <td className="num">{c.latencyMs != null ? `${c.latencyMs} ms` : "—"}</td>
+                      <td style={{fontSize:12, color:"var(--ink-3)"}}>{c.detail || ""}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div style={{marginTop:32}}>
+          <Eyebrow>Environment</Eyebrow>
+          <div style={{marginTop:12, border:"1px solid var(--rule)"}}>
+            {[
+              { k: "Username (client)", v: window.getSleeperUsername?.() || "(not set — pass ?username= or set SLEEPER_USERNAME)" },
+              { k: "Data source", v: window.DATA_STATE?.source || "none" },
+              { k: "Last fetched", v: window.DATA_STATE?.fetchedAt || "—" },
+              { k: "AI overlay", v: LLM_RECOMMENDATIONS?.enabled ? `enabled (${LLM_RECOMMENDATIONS?.model || "model unknown"})` : "disabled" },
+            ].map((row, i) => (
+              <div key={i} style={{display:"grid", gridTemplateColumns:"220px 1fr", gap:16, padding:"12px 16px", borderBottom: i < 3 ? "1px solid var(--rule-2)" : "none"}}>
+                <div className="mono" style={{fontSize:10, letterSpacing:"0.08em", textTransform:"uppercase", color:"var(--ink-3)"}}>{row.k}</div>
+                <div style={{fontSize:13}}>{row.v}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+Object.assign(window, { DraftScreen, MatchupScreen, RosterScreen, SettingsScreen });

@@ -8,6 +8,7 @@ function Sidebar({ route, setRoute, onOpenChat, badges }) {
     { id: "matchup", label: "Matchup", kbd: "3" },
     { id: "draft", label: "Draft Room", kbd: "4", count: "LIVE" },
     { id: "roster", label: "Roster", kbd: "5" },
+    { id: "settings", label: "Settings", kbd: "6" },
   ];
   return (
     <aside className="sidebar">
