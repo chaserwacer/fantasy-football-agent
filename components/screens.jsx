@@ -301,7 +301,7 @@ function RosterScreen() {
         right={<><span>{ROSTER.length} players · {healthPct}% healthy</span><span className="big">{Number(LEAGUE.myProjection || 0).toFixed(1)} proj</span></>}
       />
       <div className="content" style={{paddingTop:28}}>
-        <Eyebrow>Starters · Week 6</Eyebrow>
+        <Eyebrow>Starters · Week {LEAGUE.week}</Eyebrow>
         <table className="data" style={{marginTop:12}}>
           <thead><tr>
             <th style={{width:40}}>Slot</th><th>Player</th><th>Team</th><th></th>

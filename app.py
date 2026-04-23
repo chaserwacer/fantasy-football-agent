@@ -11,7 +11,7 @@ from sleeper_client import SleeperApiError, SleeperClient
 
 
 ROOT_DIR = Path(__file__).resolve().parent
-DEFAULT_USERNAME = os.getenv("SLEEPER_USERNAME", "chaserwacer")
+DEFAULT_USERNAME = os.getenv("SLEEPER_USERNAME", "").strip()
 
 app = Flask(__name__, static_folder=str(ROOT_DIR), static_url_path="")
 service = CommissionerService(SleeperClient())
@@ -29,7 +29,10 @@ def health() -> Any:
 
 @app.get("/api/context")
 def context() -> Any:
-    username = request.args.get("username", DEFAULT_USERNAME).strip() or DEFAULT_USERNAME
+    username = (request.args.get("username") or DEFAULT_USERNAME).strip()
+    if not username:
+        return jsonify({"error": "username is required (set SLEEPER_USERNAME or pass ?username=)"}), 400
+
     season_raw = request.args.get("season")
     week_raw = request.args.get("week")
     llm_raw = (request.args.get("llm") or "true").strip().lower()
@@ -52,7 +55,9 @@ def context() -> Any:
 def chat() -> Any:
     body: Dict[str, Any] = request.get_json(silent=True) or {}
     message = str(body.get("message") or "").strip()
-    username = str(body.get("username") or DEFAULT_USERNAME).strip() or DEFAULT_USERNAME
+    username = (str(body.get("username") or "") or DEFAULT_USERNAME).strip()
+    if not username:
+        return jsonify({"error": "username is required (set SLEEPER_USERNAME or include username in body)"}), 400
 
     season = body.get("season")
     week = body.get("week")
@@ -88,4 +93,5 @@ def static_files(filename: str) -> Any:
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8000"))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    debug = os.getenv("FLASK_DEBUG", "0").strip().lower() in {"1", "true", "yes", "on"}
+    app.run(host="0.0.0.0", port=port, debug=debug)

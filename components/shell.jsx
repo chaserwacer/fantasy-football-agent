@@ -84,7 +84,7 @@ function ChatPanel({ open, onClose }) {
         headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({
           message: userMsg,
-          username: window.getSleeperUsername?.() || LEAGUE.user?.handle || "chaserwacer",
+          username: window.getSleeperUsername?.() || LEAGUE.user?.handle || "",
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -105,7 +105,7 @@ function ChatPanel({ open, onClose }) {
           <Dot kind="good" pulse />
           <div>
             <div style={{fontFamily:"var(--serif)", fontSize:20, fontStyle:"italic", lineHeight:1}}>Commissioner</div>
-            <div className="mono" style={{fontSize:10, color:"var(--ink-3)", marginTop:2}}>ONLINE · CONTEXT: WEEK 6</div>
+            <div className="mono" style={{fontSize:10, color:"var(--ink-3)", marginTop:2}}>ONLINE · CONTEXT: WEEK {LEAGUE.week}</div>
           </div>
         </div>
         <button className="btn ghost sm" onClick={onClose}>Close <kbd>Esc</kbd></button>

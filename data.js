@@ -1,8 +1,6 @@
 // API-backed data hydration for Commissioner.
 // The UI boots with fallback values, then refreshes with live Sleeper context from Python.
 
-const DEFAULT_USERNAME = "chaserwacer";
-
 const LEAGUE = {
   name: "Commissioner League",
   format: "Dynasty — Half PPR",
@@ -10,7 +8,7 @@ const LEAGUE = {
   week: 1,
   season: new Date().getFullYear(),
   scoring: ["Half PPR", "4pt Pass TD", "-2 INT", "Sleeper Live Data"],
-  user: { handle: DEFAULT_USERNAME, team: "Loading Team", record: "0-0", rank: 0, pointsFor: 0 },
+  user: { handle: "", team: "Loading Team", record: "0-0", rank: 0, pointsFor: 0 },
   nextOpponent: { team: "TBD", owner: "unknown", record: "0-0", rank: 0, projSpread: 0, winProb: 50 },
   myProjection: 0,
   oppProjection: 0,
@@ -59,15 +57,17 @@ function applyPayload(payload) {
 }
 
 function storedUsername() {
-  return localStorage.getItem("cm_username") || DEFAULT_USERNAME;
+  return localStorage.getItem("cm_username") || "";
 }
 
 async function loadCommissionerData(options = {}) {
-  const username = (options.username || storedUsername() || DEFAULT_USERNAME).trim();
-  localStorage.setItem("cm_username", username);
-
-  const query = new URLSearchParams({ username });
-  const url = `/api/context?${query.toString()}`;
+  const username = String(options.username ?? storedUsername()).trim();
+  const query = new URLSearchParams();
+  if (username) {
+    localStorage.setItem("cm_username", username);
+    query.set("username", username);
+  }
+  const url = `/api/context${query.toString() ? `?${query.toString()}` : ""}`;
 
   try {
     const response = await fetch(url, { headers: { "Accept": "application/json" } });
