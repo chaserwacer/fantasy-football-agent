@@ -1,15 +1,17 @@
 // API-backed data hydration for Commissioner.
-// The UI boots with fallback values, then refreshes with live Sleeper context from Python.
+// The UI starts empty and renders a loading state until the server returns
+// a live Sleeper snapshot, or until a persisted snapshot is rehydrated from
+// the server-side history store.
 
 const LEAGUE = {
-  name: "Commissioner League",
-  format: "Dynasty — Half PPR",
-  teams: 12,
-  week: 1,
-  season: new Date().getFullYear(),
-  scoring: ["Half PPR", "4pt Pass TD", "-2 INT", "Sleeper Live Data"],
-  user: { handle: "", team: "Loading Team", record: "0-0", rank: 0, pointsFor: 0 },
-  nextOpponent: { team: "TBD", owner: "unknown", record: "0-0", rank: 0, projSpread: 0, winProb: 50 },
+  name: "",
+  format: "",
+  teams: 0,
+  week: 0,
+  season: 0,
+  scoring: [],
+  user: { handle: "", team: "", record: "", rank: 0, pointsFor: 0 },
+  nextOpponent: { team: "", owner: "", record: "", rank: 0, projSpread: 0, winProb: 0 },
   myProjection: 0,
   oppProjection: 0,
 };
@@ -22,7 +24,7 @@ const OPP_ROSTER = [];
 const NEWS = [];
 const LLM_RECOMMENDATIONS = {
   enabled: false,
-  provider: "openai",
+  provider: "",
   model: "",
   summary: "",
   lineup: [],
@@ -35,6 +37,8 @@ const LLM_RECOMMENDATIONS = {
 const POS_COLORS = {
   QB: "#C44536", RB: "#2B7A4B", WR: "#3A6EA5", TE: "#B88A2F", K: "#6B6760", DEF: "#6B6760", FLEX: "#141413",
 };
+
+const DATA_STATE = { loaded: false, source: "none", fetchedAt: null };
 
 function replaceArray(target, next) {
   target.length = 0;
@@ -54,6 +58,9 @@ function applyPayload(payload) {
   replaceArray(NEWS, payload.NEWS);
   if (payload.LLM_RECOMMENDATIONS) Object.assign(LLM_RECOMMENDATIONS, payload.LLM_RECOMMENDATIONS);
   if (payload.POS_COLORS) Object.assign(POS_COLORS, payload.POS_COLORS);
+  DATA_STATE.loaded = true;
+  DATA_STATE.source = payload.META?.source || "live";
+  DATA_STATE.fetchedAt = payload.META?.fetched_at || new Date().toISOString();
 }
 
 function storedUsername() {
@@ -77,7 +84,7 @@ async function loadCommissionerData(options = {}) {
     }
     const payload = await response.json();
     applyPayload(payload);
-    window.dispatchEvent(new CustomEvent("commissioner:data-updated", { detail: { username } }));
+    window.dispatchEvent(new CustomEvent("commissioner:data-updated", { detail: { username, source: DATA_STATE.source } }));
     return payload;
   } catch (err) {
     console.error("Commissioner data load failed:", err);
@@ -102,6 +109,7 @@ Object.assign(window, {
   NEWS,
   LLM_RECOMMENDATIONS,
   POS_COLORS,
+  DATA_STATE,
   loadCommissionerData,
   setSleeperUsername,
   getSleeperUsername: storedUsername,

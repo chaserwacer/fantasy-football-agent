@@ -4,6 +4,7 @@ import math
 from collections import Counter
 from typing import Any, Dict, List, Optional, Tuple
 
+from history_store import HistoryStore
 from llm_recommender import LLMRecommendationError, OpenAIRecommendationClient
 from sleeper_client import SleeperApiError, SleeperClient, TTLCache
 
@@ -42,10 +43,11 @@ class CommissionerService:
         "OP": {"QB", "RB", "WR", "TE"},
     }
 
-    def __init__(self, sleeper_client: SleeperClient) -> None:
+    def __init__(self, sleeper_client: SleeperClient, *, history: Optional[HistoryStore] = None) -> None:
         self._sleeper = sleeper_client
         self._cache = TTLCache()
         self._llm = OpenAIRecommendationClient.from_env()
+        self._history = history
 
     def build_context(
         self,
@@ -182,9 +184,15 @@ class CommissionerService:
                 "league_id": league_id,
                 "roster_id": int(my_roster.get("roster_id", 0)),
                 "username": username,
+                "source": "live",
             },
         }
         self._cache.set(cache_key, payload, ttl_seconds=90)
+        if self._history is not None:
+            try:
+                self._history.save_context(username=username, season=season, week=week, payload=payload)
+            except OSError:
+                pass
         return payload
 
     def answer_chat(
@@ -198,6 +206,8 @@ class CommissionerService:
     ) -> str:
         """Returns lightweight assistant responses grounded in current context."""
         ctx = self.build_context(username=username, season=season, week=week, include_llm=use_llm)
+        used_llm = False
+        reply: Optional[str] = None
         if use_llm and self._llm is not None:
             llm_context = {
                 "league": ctx.get("LEAGUE") or {},
@@ -210,11 +220,26 @@ class CommissionerService:
             try:
                 llm_reply = self._llm.generate_chat_reply(context=llm_context, user_message=message)
                 if llm_reply:
-                    return llm_reply
+                    reply = llm_reply
+                    used_llm = True
             except LLMRecommendationError:
+                reply = None
+
+        if reply is None:
+            reply = self._answer_chat_deterministic(message=message, ctx=ctx)
+
+        if self._history is not None:
+            try:
+                self._history.append_chat(
+                    username=username,
+                    user_message=message,
+                    reply=reply,
+                    used_llm=used_llm,
+                )
+            except OSError:
                 pass
 
-        return self._answer_chat_deterministic(message=message, ctx=ctx)
+        return reply
 
     def _answer_chat_deterministic(self, *, message: str, ctx: Dict[str, Any]) -> str:
         """Provides deterministic fallback chat behavior when LLM is unavailable."""

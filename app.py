@@ -7,14 +7,17 @@ from typing import Any, Dict
 from flask import Flask, jsonify, request, send_from_directory
 
 from commissioner_service import CommissionerService
+from history_store import HistoryStore
 from sleeper_client import SleeperApiError, SleeperClient
 
 
 ROOT_DIR = Path(__file__).resolve().parent
 DEFAULT_USERNAME = os.getenv("SLEEPER_USERNAME", "").strip()
+HISTORY_PATH = Path(os.getenv("COMMISSIONER_HISTORY_PATH", str(ROOT_DIR / "data" / "history.json")))
 
 app = Flask(__name__, static_folder=str(ROOT_DIR), static_url_path="")
-service = CommissionerService(SleeperClient())
+history = HistoryStore(HISTORY_PATH)
+service = CommissionerService(SleeperClient(), history=history)
 
 
 @app.get("/")
@@ -44,8 +47,20 @@ def context() -> Any:
     try:
         payload = service.build_context(username=username, season=season, week=week, include_llm=include_llm)
     except SleeperApiError as exc:
+        cached = history.latest_context(username)
+        if cached is not None:
+            cached_meta = dict(cached.get("META") or {})
+            cached_meta["error"] = str(exc)
+            cached["META"] = cached_meta
+            return jsonify(cached)
         return jsonify({"error": str(exc)}), 502
     except Exception as exc:  # pragma: no cover - defensive fallback
+        cached = history.latest_context(username)
+        if cached is not None:
+            cached_meta = dict(cached.get("META") or {})
+            cached_meta["error"] = f"Unexpected server error: {exc}"
+            cached["META"] = cached_meta
+            return jsonify(cached)
         return jsonify({"error": f"Unexpected server error: {exc}"}), 500
 
     return jsonify(payload)
@@ -84,6 +99,21 @@ def chat() -> Any:
         return jsonify({"error": f"Unexpected server error: {exc}"}), 500
 
     return jsonify({"reply": reply})
+
+
+@app.get("/api/chat/history")
+def chat_history() -> Any:
+    username = (request.args.get("username") or DEFAULT_USERNAME).strip()
+    if not username:
+        return jsonify({"error": "username is required (set SLEEPER_USERNAME or pass ?username=)"}), 400
+
+    limit_raw = request.args.get("limit") or "50"
+    try:
+        limit = max(1, min(200, int(limit_raw)))
+    except ValueError:
+        limit = 50
+
+    return jsonify({"username": username, "messages": history.list_chats(username, limit=limit)})
 
 
 @app.get("/<path:filename>")

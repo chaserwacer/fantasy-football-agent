@@ -64,13 +64,33 @@ function Masthead({ eyebrow, title, titleEm, right }) {
 }
 
 function ChatPanel({ open, onClose }) {
-  const [msgs, setMsgs] = useState([
-    { who: "agent", text: "I am synced to your league context. Ask about lineup, waivers, matchup, or trade targets." },
-  ]);
+  const INTRO_MSG = { who: "agent", text: "I am synced to your league context. Ask about lineup, waivers, matchup, or trade targets." };
+  const [msgs, setMsgs] = useState([INTRO_MSG]);
   const [val, setVal] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const scrollRef = useRef(null);
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [msgs, open]);
+
+  useEffect(() => {
+    if (historyLoaded) return;
+    const username = window.getSleeperUsername?.() || LEAGUE.user?.handle || "";
+    if (!username) return;
+    const query = new URLSearchParams({ username, limit: "50" });
+    fetch(`/api/chat/history?${query.toString()}`, { headers: { "Accept": "application/json" } })
+      .then(r => r.ok ? r.json() : null)
+      .then(body => {
+        const entries = Array.isArray(body?.messages) ? body.messages : [];
+        if (!entries.length) { setHistoryLoaded(true); return; }
+        const prior = entries.flatMap(e => ([
+          { who: "user", text: String(e.user_message || "") },
+          { who: "agent", text: String(e.reply || ""), used_llm: !!e.used_llm },
+        ])).filter(m => m.text);
+        setMsgs([INTRO_MSG, ...prior]);
+        setHistoryLoaded(true);
+      })
+      .catch(() => setHistoryLoaded(true));
+  }, [historyLoaded, open]);
   const send = async () => {
     if (!val.trim()) return;
     const userMsg = val.trim();

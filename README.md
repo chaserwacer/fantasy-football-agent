@@ -78,6 +78,7 @@ All configuration is via environment variables. See [`.env.example`](.env.exampl
 | `OPENAI_API_KEY` | No | *(unset)* | If set, enables the AI overlay in `/api/context` and `/api/chat`. |
 | `OPENAI_MODEL` | No | `gpt-4o-mini` | Chat-completions model ID. |
 | `OPENAI_TIMEOUT_SECONDS` | No | `25` | Per-request timeout (minimum 10s). |
+| `COMMISSIONER_HISTORY_PATH` | No | `data/history.json` | File path for the persisted context snapshots and chat history. The parent directory is created on startup. |
 
 If `OPENAI_API_KEY` is missing or empty, the app silently uses deterministic recommendations only — the UI surfaces a hint in the "AI Second Opinion" card.
 
@@ -104,6 +105,8 @@ Query parameters:
 
 The `LLM_RECOMMENDATIONS` sub-object always exists. When disabled, `enabled` is `false` and `summary` explains why (no key, disabled by request, or upstream error).
 
+The `META.source` field is `live` for fresh fetches and `history` when the server served the last persisted snapshot after an upstream failure.
+
 ### `POST /api/chat`
 
 Contextual chat grounded in the current league snapshot.
@@ -119,6 +122,36 @@ Contextual chat grounded in the current league snapshot.
 ```
 
 Only `message` is required. When `use_llm` is true and `OPENAI_API_KEY` is set, the server calls OpenAI with a trimmed context; otherwise it returns a deterministic heuristic reply.
+
+### `GET /api/chat/history`
+
+Returns persisted chat turns for a user so prior suggestions survive restarts.
+
+| Param | Default | Notes |
+| --- | --- | --- |
+| `username` | `SLEEPER_USERNAME` | Sleeper handle. |
+| `limit` | `50` | Max turns to return (1–200). |
+
+Response:
+
+```json
+{
+  "username": "your_handle",
+  "messages": [
+    { "timestamp": "2026-04-23T17:12:44+00:00", "user_message": "…", "reply": "…", "used_llm": true }
+  ]
+}
+```
+
+## Persistence
+
+Both context snapshots and chat turns are written to a local JSON file (see `COMMISSIONER_HISTORY_PATH`). On startup the UI:
+
+- renders a loading state until the first live fetch completes,
+- automatically falls back to the most recent saved snapshot if Sleeper is unreachable, and
+- restores the last ~50 chat turns in the Ask Commissioner panel.
+
+The history file contains live league data — keep it out of version control. The default path `data/` is already in [`.gitignore`](.gitignore).
 
 ## Caching
 
