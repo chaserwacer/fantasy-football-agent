@@ -121,15 +121,6 @@ class SleeperClient:
             ttl_seconds=120,
         )
 
-    def get_league_drafts(self, league_id: str) -> list[Dict[str, Any]]:
-        return self._get_json(f"/league/{league_id}/drafts", ttl_seconds=300)
-
-    def get_draft(self, draft_id: str) -> Dict[str, Any]:
-        return self._get_json(f"/draft/{draft_id}", ttl_seconds=300)
-
-    def get_draft_picks(self, draft_id: str) -> list[Dict[str, Any]]:
-        return self._get_json(f"/draft/{draft_id}/picks", ttl_seconds=120)
-
     def request_external_json(self, url: str, *, ttl_key: Optional[str] = None, ttl_seconds: int = 0) -> Any:
         key = ttl_key or url
         if ttl_seconds > 0:

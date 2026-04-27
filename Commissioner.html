@@ -21,15 +21,17 @@
 
   <script type="text/babel">
     const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
-      "format": "Dynasty",
       "density": "Compact"
     }/*EDITMODE-END*/;
 
     function App() {
-      const [route, setRoute] = React.useState(() => localStorage.getItem("cm_route") || "dashboard");
+      const normalizeRoute = (value) => {
+        const allowed = new Set(["dashboard", "startsit", "matchup", "roster", "settings"]);
+        return allowed.has(value) ? value : "dashboard";
+      };
+      const [route, setRoute] = React.useState(() => normalizeRoute(localStorage.getItem("cm_route") || "dashboard"));
       const [chatOpen, setChatOpen] = React.useState(false);
       const [tweaksOpen, setTweaksOpen] = React.useState(false);
-      const [format, setFormatState] = React.useState(TWEAK_DEFAULTS.format);
       const [density, setDensityState] = React.useState(TWEAK_DEFAULTS.density);
       const [dataVersion, setDataVersion] = React.useState(0);
       const [dataError, setDataError] = React.useState("");
@@ -38,7 +40,6 @@
 
       React.useEffect(() => { localStorage.setItem("cm_route", route); }, [route]);
 
-      const setFormat = v => { setFormatState(v); window.parent.postMessage({type:"__edit_mode_set_keys", edits:{format:v}}, "*"); };
       const setDensity = v => { setDensityState(v); window.parent.postMessage({type:"__edit_mode_set_keys", edits:{density:v}}, "*"); };
 
       React.useEffect(() => {
@@ -80,7 +81,7 @@
           if (e.key === "Escape") { setChatOpen(false); return; }
           if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setChatOpen(o => !o); return; }
           if (document.activeElement?.tagName === "INPUT") return;
-          const map = { "1":"dashboard","2":"startsit","3":"matchup","4":"draft","5":"roster","6":"settings" };
+          const map = { "1":"dashboard","2":"startsit","3":"matchup","4":"roster","5":"settings" };
           if (map[e.key]) setRoute(map[e.key]);
         };
         window.addEventListener("keydown", onKey);
@@ -90,16 +91,10 @@
       const screen = {
         dashboard: <DashboardScreen onOpenChat={()=>setChatOpen(true)} setRoute={setRoute} />,
         startsit: <StartSitScreen />,
-        draft: <DraftScreen />,
         matchup: <MatchupScreen />,
         roster: <RosterScreen />,
         settings: <SettingsScreen />,
       }[route];
-
-      // Update league format label based on tweak
-      React.useEffect(() => {
-        window.LEAGUE.format = format === "Dynasty" ? "Dynasty — Half PPR" : format === "Redraft" ? "Redraft — Half PPR" : "Best Ball — Half PPR";
-      }, [format]);
 
       const bannerStyle = {
         padding: "8px 48px",
@@ -139,7 +134,7 @@
               <kbd style={{border:"1px solid #ffffff40", color:"#fff", background:"transparent"}}>⌘K</kbd>
             </button>
           )}
-          <TweaksPanel open={tweaksOpen} format={format} setFormat={setFormat} density={density} setDensity={setDensity} />
+          <TweaksPanel open={tweaksOpen} density={density} setDensity={setDensity} />
         </div>
       );
     }

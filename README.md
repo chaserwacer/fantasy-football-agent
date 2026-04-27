@@ -180,7 +180,7 @@ Sleeper responses are cached in-process with endpoint-specific TTLs (player cata
 - Single-process in-memory cache — not horizontally scalable as-is.
 - No authentication. Intended for local or trusted-network use.
 - ESPN standings are fetched anonymously and may rate-limit under load.
-- The draft screen's "Why this pick" copy and pick label (`1.03`) are design content, not live data.
+- When upstream data is missing (for example no published matchup yet), the UI now renders explicit unavailable markers instead of synthetic placeholder stats.
 
 ## License
 

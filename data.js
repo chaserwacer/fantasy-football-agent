@@ -18,8 +18,7 @@ const LEAGUE = {
 
 const ROSTER = [];
 const STARTSIT = [];
-const DRAFT_QUEUE = [];
-const DRAFT_BOARD = [];
+const WAIVERS = [];
 const OPP_ROSTER = [];
 const NEWS = [];
 const LLM_RECOMMENDATIONS = {
@@ -52,8 +51,7 @@ function applyPayload(payload) {
   if (payload.LEAGUE) Object.assign(LEAGUE, payload.LEAGUE);
   replaceArray(ROSTER, payload.ROSTER);
   replaceArray(STARTSIT, payload.STARTSIT);
-  replaceArray(DRAFT_QUEUE, payload.DRAFT_QUEUE);
-  replaceArray(DRAFT_BOARD, payload.DRAFT_BOARD);
+  replaceArray(WAIVERS, payload.WAIVERS);
   replaceArray(OPP_ROSTER, payload.OPP_ROSTER);
   replaceArray(NEWS, payload.NEWS);
   if (payload.LLM_RECOMMENDATIONS) Object.assign(LLM_RECOMMENDATIONS, payload.LLM_RECOMMENDATIONS);
@@ -103,8 +101,7 @@ Object.assign(window, {
   LEAGUE,
   ROSTER,
   STARTSIT,
-  DRAFT_QUEUE,
-  DRAFT_BOARD,
+  WAIVERS,
   OPP_ROSTER,
   NEWS,
   LLM_RECOMMENDATIONS,

@@ -129,7 +129,7 @@ function StartSitScreen() {
               <Eyebrow>Side by side</Eyebrow>
               <table className="data" style={{marginTop:12}}>
                 <thead><tr>
-                  <th></th><th>Player</th><th className="num">Proj</th><th className="num">Snap%</th><th className="num">Tgt%</th><th className="num">Def Rank</th><th className="num">Implied Tm</th>
+                  <th></th><th>Player</th><th className="num">Proj</th><th className="num">Snap%</th><th className="num">Tgt%</th>
                 </tr></thead>
                 <tbody>
                   <tr>
@@ -138,8 +138,6 @@ function StartSitScreen() {
                     <td className="num">{Number(rec.startMetrics?.proj || 0).toFixed(1)}</td>
                     <td className="num">{Math.round(Number(rec.startMetrics?.snap || 0) * 100)}%</td>
                     <td className="num">{Math.round(Number(rec.startMetrics?.share || 0) * 100)}%</td>
-                    <td className="num"><span style={{color:"var(--good)"}}>Strong</span></td>
-                    <td className="num">Live</td>
                   </tr>
                   <tr>
                     <td><Pill>Sit</Pill></td>
@@ -147,8 +145,6 @@ function StartSitScreen() {
                     <td className="num">{Number(rec.sitMetrics?.proj || 0).toFixed(1)}</td>
                     <td className="num">{Math.round(Number(rec.sitMetrics?.snap || 0) * 100)}%</td>
                     <td className="num">{Math.round(Number(rec.sitMetrics?.share || 0) * 100)}%</td>
-                    <td className="num"><span style={{color:"var(--bad)"}}>Lower</span></td>
-                    <td className="num">Live</td>
                   </tr>
                 </tbody>
               </table>

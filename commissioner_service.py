@@ -122,14 +122,13 @@ class CommissionerService:
             scoring=scoring,
         )
 
-        draft_queue = self._build_priority_queue(
+        waivers = self._build_waiver_queue(
             roster_rows=roster_rows,
             players=players,
             projections=projections,
             scoring=scoring,
         )
-        draft_board = self._build_priority_board(draft_queue, self._team_label(users_by_id.get(user_id), my_roster))
-        news = self._build_news(startsit, roster_rows, draft_queue, team_strength)
+        news = self._build_news(startsit, roster_rows, waivers, team_strength)
 
         ranked = self._rank_rosters(rosters)
         roster_id = int(my_roster.get("roster_id", 0))
@@ -159,7 +158,7 @@ class CommissionerService:
             include_llm=include_llm,
             league_payload=league_payload,
             startsit=startsit,
-            draft_queue=draft_queue,
+            waivers=waivers,
             roster_rows=roster_rows,
             opp_roster=opp_roster,
             news=news,
@@ -174,8 +173,7 @@ class CommissionerService:
             "LEAGUE": league_payload,
             "ROSTER": roster_rows,
             "STARTSIT": startsit,
-            "DRAFT_QUEUE": draft_queue,
-            "DRAFT_BOARD": draft_board,
+            "WAIVERS": waivers,
             "OPP_ROSTER": opp_roster,
             "NEWS": news,
             "LLM_RECOMMENDATIONS": llm_recommendations,
@@ -212,7 +210,7 @@ class CommissionerService:
             llm_context = {
                 "league": ctx.get("LEAGUE") or {},
                 "deterministicStartSit": (ctx.get("STARTSIT") or [])[:3],
-                "deterministicWaivers": (ctx.get("DRAFT_QUEUE") or [])[:5],
+                "deterministicWaivers": (ctx.get("WAIVERS") or [])[:5],
                 "llmRecommendations": ctx.get("LLM_RECOMMENDATIONS") or {},
                 "opponentStarterView": (ctx.get("OPP_ROSTER") or [])[:7],
                 "news": (ctx.get("NEWS") or [])[:5],
@@ -246,7 +244,7 @@ class CommissionerService:
         text = (message or "").strip().lower()
 
         startsit = ctx.get("STARTSIT") or []
-        queue = ctx.get("DRAFT_QUEUE") or []
+        queue = ctx.get("WAIVERS") or []
         league = ctx.get("LEAGUE") or {}
 
         if any(k in text for k in ["start", "sit", "lineup", "flex"]):
@@ -291,7 +289,7 @@ class CommissionerService:
         include_llm: bool,
         league_payload: Dict[str, Any],
         startsit: List[Dict[str, Any]],
-        draft_queue: List[Dict[str, Any]],
+        waivers: List[Dict[str, Any]],
         roster_rows: List[Dict[str, Any]],
         opp_roster: List[Dict[str, Any]],
         news: List[Dict[str, Any]],
@@ -321,7 +319,7 @@ class CommissionerService:
             "league": league_payload,
             "deterministic": {
                 "lineup": startsit[:3],
-                "waivers": draft_queue[:5],
+                "waivers": waivers[:5],
             },
             "roster": {
                 "starters": [row for row in roster_rows if row.get("slot") != "BN"][:12],
@@ -350,7 +348,7 @@ class CommissionerService:
         if summary:
             items.append(
                 {
-                    "time": "just now",
+                    "time": None,
                     "tag": "AI",
                     "player": "CommissionerAI",
                     "pos": "",
@@ -364,7 +362,7 @@ class CommissionerService:
             call = top_lineup[0]
             items.append(
                 {
-                    "time": "just now",
+                    "time": None,
                     "tag": "AI-LINEUP",
                     "player": str(call.get("recommendStart") or "").strip(),
                     "pos": str(call.get("slot") or ""),
@@ -378,7 +376,7 @@ class CommissionerService:
             target = top_waiver[0]
             items.append(
                 {
-                    "time": "just now",
+                    "time": None,
                     "tag": "AI-WAIVER",
                     "player": str(target.get("player") or "").strip(),
                     "pos": str(target.get("pos") or ""),
@@ -706,12 +704,12 @@ class CommissionerService:
         my_entry = next((entry for entry in matchups if int(entry.get("roster_id", -1)) == my_roster_id), None)
 
         empty_next = {
-            "team": "TBD",
-            "owner": "unknown",
-            "record": "0-0",
-            "rank": 0,
-            "projSpread": 0.0,
-            "winProb": 50,
+            "team": "",
+            "owner": "",
+            "record": "",
+            "rank": None,
+            "projSpread": None,
+            "winProb": None,
         }
 
         if not my_entry:
@@ -775,7 +773,7 @@ class CommissionerService:
         owner = users_by_id.get(owner_id, {})
         next_opponent = {
             "team": self._team_label(owner, opponent_roster),
-            "owner": owner.get("username") or owner.get("display_name") or "unknown",
+            "owner": owner.get("username") or owner.get("display_name") or "",
             "record": self._record_label(opponent_roster.get("settings") or {}),
             "rank": opp_rank,
             "projSpread": round(spread, 1),
@@ -785,7 +783,7 @@ class CommissionerService:
         opp_roster_view = [{"n": row["n"], "pos": row["pos"], "proj": row["proj"]} for row in opp_rows[:7]]
         return next_opponent, opp_roster_view, my_total, opp_total
 
-    def _build_priority_queue(
+    def _build_waiver_queue(
         self,
         *,
         roster_rows: List[Dict[str, Any]],
@@ -825,7 +823,7 @@ class CommissionerService:
                     "n": name,
                     "pos": position,
                     "team": profile.get("team") or "FA",
-                    "adp": "--",
+                    "adp": None,
                     "tier": tier,
                     "fit": fit_label,
                     "note": f"Trending adds +{int(item.get('count') or 0)} over the last 24h.",
@@ -836,44 +834,20 @@ class CommissionerService:
 
         return queue
 
-    def _build_priority_board(self, queue: List[Dict[str, Any]], my_team_name: str) -> List[Dict[str, Any]]:
-        picks = []
-        for index in range(6):
-            status = "future"
-            if index < 2:
-                status = "past"
-            elif index == 2:
-                status = "onclock"
-
-            player_name = queue[index]["n"] if index < len(queue) and status == "past" else "—"
-            player_pos = queue[index]["pos"] if index < len(queue) and status == "past" else ""
-            picks.append(
-                {
-                    "pk": f"1.0{index + 1}",
-                    "team": my_team_name if index == 2 else f"Queue {index + 1}",
-                    "player": player_name,
-                    "pos": player_pos,
-                    "status": status,
-                    "ours": index == 2,
-                }
-            )
-        return picks
-
     def _build_news(
         self,
         startsit: List[Dict[str, Any]],
         roster_rows: List[Dict[str, Any]],
-        draft_queue: List[Dict[str, Any]],
+        waivers: List[Dict[str, Any]],
         team_strength: Dict[str, float],
     ) -> List[Dict[str, Any]]:
         items: List[Dict[str, Any]] = []
-        times = ["just now", "18m", "1h", "3h", "6h"]
 
         if startsit:
             top = startsit[0]
             items.append(
                 {
-                    "time": times[0],
+                    "time": None,
                     "tag": "LINEUP",
                     "player": top["recommendStart"],
                     "pos": "",
@@ -884,10 +858,10 @@ class CommissionerService:
             )
 
         injuries = [row for row in roster_rows if row.get("status") in {"questionable", "out"}]
-        for idx, row in enumerate(injuries[:2], start=1):
+        for row in injuries[:2]:
             items.append(
                 {
-                    "time": times[idx],
+                    "time": None,
                     "tag": "INJURY",
                     "player": row["n"],
                     "pos": row["pos"],
@@ -897,11 +871,11 @@ class CommissionerService:
                 }
             )
 
-        if draft_queue:
-            top = draft_queue[0]
+        if waivers:
+            top = waivers[0]
             items.append(
                 {
-                    "time": "2h",
+                    "time": None,
                     "tag": "WAIVER",
                     "player": top["n"],
                     "pos": top["pos"],
@@ -916,7 +890,7 @@ class CommissionerService:
             best_team, strength = strong_teams[0]
             items.append(
                 {
-                    "time": "5h",
+                    "time": None,
                     "tag": "EXTERNAL",
                     "player": best_team,
                     "pos": "",

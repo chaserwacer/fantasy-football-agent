@@ -4,13 +4,16 @@ function DashboardScreen({ onOpenChat, setRoute }) {
   const aiTopCall = (LLM_RECOMMENDATIONS?.lineup || [])[0] || null;
   const aiTopWaiver = (LLM_RECOMMENDATIONS?.waivers || [])[0] || null;
   const aiSummary = String(LLM_RECOMMENDATIONS?.summary || "").trim();
-  const leadAction = topCall
-    ? `Start ${topCall.recommendStart} at ${topCall.slot}. Sit ${topCall.recommendSit}.`
-    : "No clear lineup edge yet.";
   const leadBody = topCall
     ? (topCall.rationale || []).join(" ")
     : "Commissioner is waiting on additional game-state inputs before issuing a high-confidence lineup call.";
-  const pendingCount = (STARTSIT?.length || 0) + (DRAFT_QUEUE?.length ? 1 : 0);
+  const pendingCount = (STARTSIT?.length || 0) + (WAIVERS?.length ? 1 : 0);
+  const decisionCount = (STARTSIT?.length || 0) + (WAIVERS?.[0] ? 1 : 0);
+  const oppRecord = LEAGUE.nextOpponent?.record || "-";
+  const oppRank = LEAGUE.nextOpponent?.rank ? `#${LEAGUE.nextOpponent.rank} seed` : "rank n/a";
+  const oppOwner = LEAGUE.nextOpponent?.owner ? `@${LEAGUE.nextOpponent.owner}` : "owner n/a";
+  const winProb = Number.isFinite(Number(LEAGUE.nextOpponent?.winProb)) ? Number(LEAGUE.nextOpponent.winProb) : null;
+  const projSpread = Number.isFinite(Number(LEAGUE.nextOpponent?.projSpread)) ? Number(LEAGUE.nextOpponent.projSpread) : null;
 
   return (
     <>
@@ -91,10 +94,10 @@ function DashboardScreen({ onOpenChat, setRoute }) {
             <StatBlock
               label="Projected this week"
               value={Number(LEAGUE.myProjection || 0).toFixed(1)}
-              delta={`${(LEAGUE.nextOpponent?.projSpread || 0) >= 0 ? "+" : ""}${Number(LEAGUE.nextOpponent?.projSpread || 0).toFixed(1)} vs opponent`}
-              deltaKind={(LEAGUE.nextOpponent?.projSpread || 0) >= 0 ? "up" : "down"}
+              delta={projSpread != null ? `${projSpread >= 0 ? "+" : ""}${projSpread.toFixed(1)} vs opponent` : "No matchup spread available"}
+              deltaKind={projSpread != null ? (projSpread >= 0 ? "up" : "down") : ""}
             />
-            <StatBlock label="Record" value={LEAGUE.user?.record || "0-0"} delta={`${LEAGUE.user?.rank || "-"}th of ${LEAGUE.teams || "-"}`} deltaKind="" />
+            <StatBlock label="Record" value={LEAGUE.user?.record || "-"} delta={`${LEAGUE.user?.rank || "-"}th of ${LEAGUE.teams || "-"}`} deltaKind="" />
             <StatBlock
               label="Roster health"
               value={String(Math.max(0, 100 - (ROSTER.filter(p => p.status !== "healthy").length * 8)))}
@@ -107,16 +110,16 @@ function DashboardScreen({ onOpenChat, setRoute }) {
           {/* Matchup */}
           <div className="card dark">
             <Eyebrow style={{color:"#ffffff80"}}>Next Opponent · Week {LEAGUE.week}</Eyebrow>
-            <div style={{fontFamily:"var(--serif)", fontSize:24, marginTop:6, letterSpacing:"-0.01em"}}>vs {LEAGUE.nextOpponent?.team || "TBD"}</div>
-            <div className="mono" style={{fontSize:11, opacity:0.7, marginTop:4}}>{LEAGUE.nextOpponent?.record || "0-0"} · #{LEAGUE.nextOpponent?.rank || "-"} seed · @{LEAGUE.nextOpponent?.owner || "unknown"}</div>
+            <div style={{fontFamily:"var(--serif)", fontSize:24, marginTop:6, letterSpacing:"-0.01em"}}>vs {LEAGUE.nextOpponent?.team || "Opponent unavailable"}</div>
+            <div className="mono" style={{fontSize:11, opacity:0.7, marginTop:4}}>{oppRecord} · {oppRank} · {oppOwner}</div>
             <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginTop:24}}>
               <div>
                 <div className="mono" style={{fontSize:10, letterSpacing:"0.1em", textTransform:"uppercase", opacity:0.6}}>Win Prob</div>
-                <div style={{fontFamily:"var(--serif)", fontSize:40, lineHeight:1, marginTop:4}}>{LEAGUE.nextOpponent?.winProb || 50}<span style={{fontSize:16, opacity:0.6}}>%</span></div>
+                <div style={{fontFamily:"var(--serif)", fontSize:40, lineHeight:1, marginTop:4}}>{winProb != null ? winProb : "-"}{winProb != null && <span style={{fontSize:16, opacity:0.6}}>%</span>}</div>
               </div>
               <div>
                 <div className="mono" style={{fontSize:10, letterSpacing:"0.1em", textTransform:"uppercase", opacity:0.6}}>Spread</div>
-                <div style={{fontFamily:"var(--serif)", fontSize:40, lineHeight:1, marginTop:4}}>{Number(LEAGUE.nextOpponent?.projSpread || 0).toFixed(1)}</div>
+                <div style={{fontFamily:"var(--serif)", fontSize:40, lineHeight:1, marginTop:4}}>{projSpread != null ? projSpread.toFixed(1) : "-"}</div>
               </div>
             </div>
             <div style={{marginTop:20, fontSize:13, lineHeight:1.55, opacity:0.85}}>
@@ -135,7 +138,7 @@ function DashboardScreen({ onOpenChat, setRoute }) {
                 <div key={i} style={{padding:"12px 0", borderBottom: i<3 ? "1px solid var(--rule-2)" : "none"}}>
                   <div style={{display:"flex", gap:8, alignItems:"baseline"}}>
                     <span className="mono" style={{fontSize:10, color: n.impact==="your-team" ? "var(--accent)" : "var(--ink-3)", fontWeight:600, letterSpacing:"0.08em"}}>{n.tag}</span>
-                    <span className="mono" style={{fontSize:10, color:"var(--ink-4)"}}>{n.time} ago</span>
+                    {n.time && <span className="mono" style={{fontSize:10, color:"var(--ink-4)"}}>{n.time}</span>}
                   </div>
                   <div style={{fontSize:13, marginTop:4}}>
                     {n.player && <span style={{fontWeight:600}}>{n.player} </span>}
@@ -154,7 +157,7 @@ function DashboardScreen({ onOpenChat, setRoute }) {
       </div>
 
       {/* Decisions queue */}
-      <SectionHead eyebrow="Decisions" title="Pending this week" meta="3 items" />
+      <SectionHead eyebrow="Decisions" title="Pending this week" meta={`${decisionCount} item${decisionCount === 1 ? "" : "s"}`} />
       <div className="content">
         <table className="data">
           <thead>
@@ -180,13 +183,13 @@ function DashboardScreen({ onOpenChat, setRoute }) {
                 <td style={{textAlign:"right"}}><button className="btn ghost sm">Review →</button></td>
               </tr>
             ))}
-            {DRAFT_QUEUE?.[0] && (
+            {WAIVERS?.[0] && (
               <tr style={{cursor:"pointer"}}>
                 <td><Dot kind="good" /></td>
                 <td style={{fontFamily:"var(--serif)", fontSize:16, letterSpacing:"-0.01em"}}>Waiver Claim</td>
-                <td>FA: {DRAFT_QUEUE[0].n} ({DRAFT_QUEUE[0].pos}, {DRAFT_QUEUE[0].team})</td>
-                <td className="num">{DRAFT_QUEUE[0].fit}</td>
-                <td className="num">{DRAFT_QUEUE[0].tier}</td>
+                <td>FA: {WAIVERS[0].n} ({WAIVERS[0].pos}, {WAIVERS[0].team})</td>
+                <td className="num">{WAIVERS[0].fit}</td>
+                <td className="num">{WAIVERS[0].tier}</td>
                 <td className="num">Waiver run</td>
                 <td style={{textAlign:"right"}}><button className="btn ghost sm">Review queue →</button></td>
               </tr>
@@ -196,9 +199,9 @@ function DashboardScreen({ onOpenChat, setRoute }) {
                 <td><Dot kind="warn" /></td>
                 <td style={{fontFamily:"var(--serif)", fontSize:16, letterSpacing:"-0.01em"}}>No immediate edge</td>
                 <td>Commissioner is waiting for stronger projection deltas.</td>
-                <td className="num">+0.0</td>
-                <td className="num">50%</td>
-                <td className="num">Live</td>
+                <td className="num">-</td>
+                <td className="num">-</td>
+                <td className="num">n/a</td>
                 <td style={{textAlign:"right"}}><button className="btn ghost sm" onClick={onOpenChat}>Ask →</button></td>
               </tr>
             )}

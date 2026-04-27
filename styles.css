@@ -387,26 +387,6 @@ table.data th.num, table.data td.num { text-align: right; }
 .checklist .step { font-size: 13px; line-height: 1.5; }
 .checklist .hint { font-family: var(--mono); font-size: 11px; color: var(--ink-3); margin-top: 4px; display: block; }
 
-/* Draft board */
-.draft-board {
-  display: grid; grid-template-columns: 64px 1fr; gap: 0;
-  border: 1px solid var(--rule);
-}
-.draft-board .col-head {
-  font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
-  color: var(--ink-3); padding: 10px 12px; border-bottom: 1px solid var(--rule); background: var(--paper-2);
-}
-.draft-pick {
-  padding: 12px 14px; border-bottom: 1px solid var(--rule-2);
-  display: grid; grid-template-columns: 48px 1fr auto; gap: 12px; align-items: center;
-}
-.draft-pick .pk { font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
-.draft-pick.ours { background: var(--paper-2); }
-.draft-pick.best {
-  background: var(--ink); color: var(--paper);
-}
-.draft-pick.best .pk, .draft-pick.best .meta { color: #ffffffaa; }
-
 /* Recommendation card (big) */
 .rec {
   border: 1px solid var(--ink);

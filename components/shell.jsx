@@ -2,13 +2,13 @@
 const { useState: _u1 } = React;
 
 function Sidebar({ route, setRoute, onOpenChat, badges }) {
+  const startSitCount = STARTSIT?.length || 0;
   const items = [
     { id: "dashboard", label: "Dashboard", kbd: "1" },
-    { id: "startsit", label: "Start / Sit", kbd: "2", count: 2 },
+    { id: "startsit", label: "Start / Sit", kbd: "2", count: startSitCount },
     { id: "matchup", label: "Matchup", kbd: "3" },
-    { id: "draft", label: "Draft Room", kbd: "4", count: "LIVE" },
-    { id: "roster", label: "Roster", kbd: "5" },
-    { id: "settings", label: "Settings", kbd: "6" },
+    { id: "roster", label: "Roster", kbd: "4" },
+    { id: "settings", label: "Settings", kbd: "5" },
   ];
   return (
     <aside className="sidebar">
@@ -154,18 +154,10 @@ function ChatPanel({ open, onClose }) {
   );
 }
 
-function TweaksPanel({ open, format, setFormat, density, setDensity }) {
+function TweaksPanel({ open, density, setDensity }) {
   return (
     <div className={`tweaks ${open?"open":""}`}>
       <h4>Tweaks</h4>
-      <div>
-        <div className="mono" style={{fontSize:10, letterSpacing:"0.1em", textTransform:"uppercase", opacity:0.6, marginBottom:6}}>League Format</div>
-        <div className="row">
-          {["Redraft","Dynasty","BestBall"].map(f => (
-            <button key={f} className={`tweak-opt ${format===f?"active":""}`} onClick={()=>setFormat(f)}>{f}</button>
-          ))}
-        </div>
-      </div>
       <div>
         <div className="mono" style={{fontSize:10, letterSpacing:"0.1em", textTransform:"uppercase", opacity:0.6, marginBottom:6}}>Density</div>
         <div className="row">
