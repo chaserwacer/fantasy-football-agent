@@ -105,7 +105,7 @@
       return (
         <div className="app" data-density={density}>
           <Sidebar route={route} setRoute={setRoute} onOpenChat={()=>setChatOpen(true)} />
-          <main className="main" key={route + format + dataVersion}>
+          <main className="main" key={`${route}-${dataVersion}`}>
             {dataError && (
               <div style={{...bannerStyle, color:"var(--bad)"}}>
                 Live sync unavailable: {dataError}.{dataLoaded ? " Showing last saved snapshot." : ""}

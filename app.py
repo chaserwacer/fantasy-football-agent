@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from flask import Flask, jsonify, request, send_from_directory
+from dotenv import load_dotenv
 
 from commissioner_service import CommissionerService
 from diagnostics import run_all as run_diagnostics
@@ -13,6 +14,7 @@ from sleeper_client import SleeperApiError, SleeperClient
 
 
 ROOT_DIR = Path(__file__).resolve().parent
+load_dotenv(ROOT_DIR / ".env")
 DEFAULT_USERNAME = os.getenv("SLEEPER_USERNAME", "").strip()
 HISTORY_PATH = Path(os.getenv("COMMISSIONER_HISTORY_PATH", str(ROOT_DIR / "data" / "history.json")))
 
